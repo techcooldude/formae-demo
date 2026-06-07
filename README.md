@@ -84,7 +84,7 @@ formae destroy --yes main.pkl
 ```
 formae-demo/
 ├── .github/workflows/
-│   ├── apply.yml                     # Deploy workflow (manual trigger)
+│   ├── deploy.yml                    # Plan → Apply pipeline (manual trigger)
 │   └── destroy.yml                   # Destroy workflow (manual trigger)
 ├── ci-pipeline/
 │   ├── main.pkl                      # Pipeline entrypoint

@@ -1,0 +1,88 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Stage 1: Plan ─────────────────────────────────────────────────────────
+  plan:
+    name: Plan (${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exit_code }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Formae
+        run: /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Formae Plan
+        id: plan
+        run: |
+          set +e
+          formae plan ec2-vm/main.pkl 2>&1 | tee formae-plan.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Upload plan output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formae-plan-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          path: formae-plan.txt
+          retention-days: 7
+
+  # ── Stage 2: Apply (runs only after plan succeeds) ────────────────────────
+  apply:
+    name: Apply (${{ github.event.inputs.environment }})
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download plan output
+        uses: actions/download-artifact@v4
+        with:
+          name: formae-plan-${{ github.event.inputs.environment }}-${{ github.run_id }}
+
+      - name: Show plan summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Applying the following plan:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat formae-plan.txt
+
+      - name: Install Formae
+        run: /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Formae Apply
+        run: formae apply --mode reconcile --yes ec2-vm/main.pkl
