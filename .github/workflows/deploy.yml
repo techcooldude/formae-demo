@@ -44,7 +44,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Resolve Pkl dependencies
-        run: cd ec2-vm && pkl project resolve
+        run: cd ec2-vm && /opt/pel/formae/bin/pkl project resolve
 
       - name: Formae Eval (Plan)
         id: plan
@@ -98,7 +98,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Resolve Pkl dependencies
-        run: cd ec2-vm && pkl project resolve
+        run: cd ec2-vm && /opt/pel/formae/bin/pkl project resolve
 
       - name: Formae Apply
         run: formae apply --mode reconcile --yes ec2-vm/main.pkl
