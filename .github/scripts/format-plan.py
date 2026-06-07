@@ -2,6 +2,7 @@
 """Format formae --simulate output as a Terraform-style plan summary."""
 import re, sys
 
+title = sys.argv[1] if len(sys.argv) > 1 else 'Formae Plan  ·  ec2-vm  ·  reconcile mode'
 text = open('/tmp/formae-sim-raw.txt').read()
 
 # Extract each resource's final action state (last occurrence wins)
@@ -38,7 +39,7 @@ SUFFIX = {
 }
 
 print('═' * W)
-print('  Formae Plan  ·  ec2-vm  ·  reconcile mode')
+print(f'  {title}')
 print('═' * W)
 print()
 

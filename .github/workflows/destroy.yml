@@ -18,11 +18,18 @@ on:
 permissions:
   contents: read
 
+env:
+  TARGET_ENV: ${{ github.event.inputs.environment }}
+
 jobs:
-  destroy:
+  # ── Stage 1: Plan (destroy simulation) ───────────────────────────────────
+  plan:
     if: github.event.inputs.confirm == 'destroy'
+    name: Plan Destroy (${{ github.event.inputs.environment }})
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exit_code }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -30,13 +37,8 @@ jobs:
         run: |
           curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
+          [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
       - name: Configure Formae CLI
         env:
@@ -49,5 +51,91 @@ jobs:
           printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
             "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Formae Destroy Plan
+        id: plan
+        run: |
+          formae eval ec2-vm/main.pkl > /dev/null 2>&1 || true
+          set +e
+          formae destroy --simulate --yes --watch \
+            --status-output-layout detailed ec2-vm/main.pkl 2>&1 \
+            | sed 's/\x1b\[[0-9;]*[mJHKABCDlh]//g; s/\r//g' \
+            > /tmp/formae-sim-raw.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          python3 .github/scripts/format-plan.py \
+            "Destroy Plan  ·  ec2-vm  ·  ${{ github.event.inputs.environment }}" \
+            | tee formae-plan.txt
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Upload plan output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formae-destroy-plan-${{ env.TARGET_ENV }}-${{ github.run_id }}
+          path: formae-plan.txt
+          retention-days: 7
+
+  # ── Stage 2: Destroy (runs only after plan succeeds) ─────────────────────
+  destroy:
+    name: Destroy (${{ github.event.inputs.environment }})
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download plan output
+        uses: actions/download-artifact@v4
+        with:
+          name: formae-destroy-plan-${{ env.TARGET_ENV }}-${{ github.run_id }}
+
+      - name: Show destroy plan summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Destroying the following resources:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat formae-plan.txt
+
+      - name: Install Formae
+        run: |
+          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
+          echo "/opt/pel/formae/bin" >> $GITHUB_PATH
+          PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
+          [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
+
+      - name: Configure Formae CLI
+        env:
+          FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
+        run: |
+          mkdir -p ~/.config/formae
+          AGENT_HOST=$(echo "$FORMAE_AGENT_URL" | sed 's|https\?://||' | cut -d: -f1)
+          AGENT_PORT=$(echo "$FORMAE_AGENT_URL" | grep -oE ':[0-9]+$' | tr -d ':')
+          AGENT_PORT=${AGENT_PORT:-49684}
+          printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
+            "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - name: Formae Destroy
-        run: formae destroy --yes ec2-vm/main.pkl
+        run: |
+          formae eval ec2-vm/main.pkl > /dev/null 2>&1 || true
+          set +e
+          formae destroy --yes --watch --status-output-layout detailed ec2-vm/main.pkl 2>&1 | tee /tmp/formae-destroy.txt
+          if grep -qE "resource .+: Failed|reason for failure|destroy command .+: Failed" /tmp/formae-destroy.txt; then
+            echo ""
+            echo "::error::One or more resources failed to destroy. See details above."
+            exit 1
+          fi
