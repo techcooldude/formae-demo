@@ -14,7 +14,7 @@ amiId = "ami-0c02fb55956c7d316"
 instanceType = "t3.micro"
 
 // Name of an existing EC2 key pair for SSH access
-keyName = "my-key-pair"
+keyName = "formae-agent-key"
 
 stack = new formae.Stack {
     label = "ec2-vm"
