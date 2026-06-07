@@ -93,7 +93,7 @@ local applyWorkflow = new workflow.Workflow {
                 }
                 new {
                     name = "Apply infrastructure"
-                    run = "formae apply --mode reconcile --yes forma.pkl"
+                    run = "formae apply --mode reconcile --yes examples/ec2-vm/main.pkl"
                     env {
                         ["FORMAE_AGENT_URL"] = "${{ vars.FORMAE_AGENT_URL }}"
                     }
@@ -146,7 +146,7 @@ local destroyWorkflow = new workflow.Workflow {
                 }
                 new {
                     name = "Destroy infrastructure"
-                    run = "formae destroy --yes forma.pkl"
+                    run = "formae destroy --yes examples/ec2-vm/main.pkl"
                     env {
                         ["FORMAE_AGENT_URL"] = "${{ vars.FORMAE_AGENT_URL }}"
                     }
