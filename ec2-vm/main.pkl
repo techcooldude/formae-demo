@@ -1,12 +1,12 @@
 amends "@formae/forma.pkl"
 
 import "@formae/formae.pkl"
-import "@aws/ec2/SecurityGroup.pkl" as sg
-import "@aws/ec2/SecurityGroupRule.pkl" as sgrule
-import "@aws/ec2/Instance.pkl" as ec2
-import "@aws/ec2/ElasticIp.pkl" as eip
-import "@aws/ec2/EipAssociation.pkl" as eipassoc
-import "@aws/cloudwatch/MetricAlarm.pkl" as alarm
+import "@aws/ec2/securitygroup.pkl" as sg
+import "@aws/ec2/securitygroupingress.pkl" as sgi
+import "@aws/ec2/securitygroupegress.pkl" as sge
+import "@aws/ec2/instance.pkl" as ec2
+import "@aws/ec2/eip.pkl" as eip
+import "@aws/ec2/eipassociation.pkl" as eipassoc
 
 import "vars.pkl"
 
@@ -16,115 +16,91 @@ description {
           - Security group (SSH + HTTP/HTTPS ingress, all egress)
           - Amazon Linux 2023 instance with basic user-data bootstrap
           - Elastic IP for a stable public address
-          - CloudWatch CPU alarm at 80% threshold
         """
     confirm = true
 }
 
 local securityGroup = new sg.SecurityGroup {
     label = "vm-sg"
-    name = "\(vars.projectName)-sg"
-    description = "Security group for \(vars.projectName)"
-    tags {
-        ["Name"] = "\(vars.projectName)-sg"
-        ["Project"] = vars.projectName
+    groupName = "\(vars.projectName)-sg"
+    groupDescription = "Security group for \(vars.projectName)"
+    tags = new {
+        new { key = "Name"; value = "\(vars.projectName)-sg" }
+        new { key = "Project"; value = vars.projectName }
+        new { key = "ManagedBy"; value = "formae" }
     }
 }
 
-local sshIngress = new sgrule.SecurityGroupRule {
+local sshIngress = new sgi.SecurityGroupIngress {
     label = "ssh-ingress"
-    type = "ingress"
+    groupId = securityGroup.res
+    ipProtocol = "tcp"
     fromPort = 22
     toPort = 22
-    protocol = "tcp"
-    cidrIpv4 = "0.0.0.0/0"
-    securityGroupId = securityGroup.id
+    cidrIp = "0.0.0.0/0"
     description = "SSH access"
 }
 
-local httpIngress = new sgrule.SecurityGroupRule {
+local httpIngress = new sgi.SecurityGroupIngress {
     label = "http-ingress"
-    type = "ingress"
+    groupId = securityGroup.res
+    ipProtocol = "tcp"
     fromPort = 80
     toPort = 80
-    protocol = "tcp"
-    cidrIpv4 = "0.0.0.0/0"
-    securityGroupId = securityGroup.id
+    cidrIp = "0.0.0.0/0"
     description = "HTTP access"
 }
 
-local httpsIngress = new sgrule.SecurityGroupRule {
+local httpsIngress = new sgi.SecurityGroupIngress {
     label = "https-ingress"
-    type = "ingress"
+    groupId = securityGroup.res
+    ipProtocol = "tcp"
     fromPort = 443
     toPort = 443
-    protocol = "tcp"
-    cidrIpv4 = "0.0.0.0/0"
-    securityGroupId = securityGroup.id
+    cidrIp = "0.0.0.0/0"
     description = "HTTPS access"
 }
 
-local allEgress = new sgrule.SecurityGroupRule {
+local allEgress = new sge.SecurityGroupEgress {
     label = "all-egress"
-    type = "egress"
-    fromPort = 0
-    toPort = 0
-    protocol = "-1"
-    cidrIpv4 = "0.0.0.0/0"
-    securityGroupId = securityGroup.id
+    groupId = securityGroup.res
+    ipProtocol = "-1"
+    cidrIp = "0.0.0.0/0"
     description = "Allow all outbound"
 }
 
 local instance = new ec2.Instance {
     label = "vm"
-    ami = vars.amiId
+    imageId = vars.amiId
     instanceType = vars.instanceType
     keyName = vars.keyName
-    associatePublicIpAddress = true
-    securityGroups { securityGroup.id }
+    securityGroupIds = new { securityGroup.res }
     userData = """
         #!/bin/bash
         yum update -y
         yum install -y git curl wget unzip
-        # Add your bootstrap commands here
         echo "VM ready: \(vars.projectName)" >> /var/log/bootstrap.log
         """
-    tags {
-        ["Name"] = vars.projectName
-        ["Project"] = vars.projectName
-        ["ManagedBy"] = "formae"
+    tags = new {
+        new { key = "Name"; value = vars.projectName }
+        new { key = "Project"; value = vars.projectName }
+        new { key = "ManagedBy"; value = "formae" }
     }
 }
 
-local elasticIp = new eip.ElasticIp {
+local elasticIp = new eip.EIP {
     label = "vm-eip"
     domain = "vpc"
-    tags {
-        ["Name"] = "\(vars.projectName)-eip"
-        ["Project"] = vars.projectName
+    tags = new {
+        new { key = "Name"; value = "\(vars.projectName)-eip" }
+        new { key = "Project"; value = vars.projectName }
     }
 }
 
-local eipAssociation = new eipassoc.EipAssociation {
+local eipAssociation = new eipassoc.EIPAssociation {
     label = "vm-eip-assoc"
-    instanceId = instance.id
-    allocationId = elasticIp.id
-}
-
-local cpuAlarm = new alarm.MetricAlarm {
-    label = "vm-cpu-alarm"
-    alarmName = "\(vars.projectName)-high-cpu"
-    alarmDescription = "EC2 CPU utilization above 80%"
-    metricName = "CPUUtilization"
-    namespace = "AWS/EC2"
-    statistic = "Average"
-    period = 300
-    evaluationPeriods = 2
-    threshold = 80
-    comparisonOperator = "GreaterThanThreshold"
-    dimensions {
-        ["InstanceId"] = instance.id
-    }
+    instanceId = instance.res
+    allocationId = elasticIp.res
 }
 
 forma {
@@ -140,6 +116,4 @@ forma {
     instance
     elasticIp
     eipAssociation
-
-    cpuAlarm
 }

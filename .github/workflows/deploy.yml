@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Formae
         run: |
-          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
+          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y -v 0.85.0
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
 
       - name: Configure AWS credentials
@@ -87,7 +87,7 @@ jobs:
 
       - name: Install Formae
         run: |
-          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
+          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y -v 0.85.0
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
 
       - name: Configure AWS credentials
