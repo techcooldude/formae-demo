@@ -38,6 +38,19 @@ jobs:
           PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
           [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
+      - name: Configure Formae CLI
+        env:
+          FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
+        run: |
+          mkdir -p ~/.config/formae
+          AGENT_HOST=$(echo "$FORMAE_AGENT_URL" | sed 's|https\?://||' | cut -d: -f1)
+          AGENT_PORT=$(echo "$FORMAE_AGENT_URL" | grep -oE ':[0-9]+$' | tr -d ':')
+          AGENT_PORT=${AGENT_PORT:-49684}
+          printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
+            "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
+          echo "Agent: $AGENT_HOST:$AGENT_PORT"
+          cat ~/.config/formae/formae.conf.pkl
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -47,8 +60,6 @@ jobs:
 
       - name: Formae Eval (Plan)
         id: plan
-        env:
-          FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
         run: |
           set +e
           formae eval ec2-vm/main.pkl 2>&1 | tee formae-plan.txt
@@ -93,6 +104,19 @@ jobs:
           PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
           [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
+      - name: Configure Formae CLI
+        env:
+          FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
+        run: |
+          mkdir -p ~/.config/formae
+          AGENT_HOST=$(echo "$FORMAE_AGENT_URL" | sed 's|https\?://||' | cut -d: -f1)
+          AGENT_PORT=$(echo "$FORMAE_AGENT_URL" | grep -oE ':[0-9]+$' | tr -d ':')
+          AGENT_PORT=${AGENT_PORT:-49684}
+          printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
+            "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
+          echo "Agent: $AGENT_HOST:$AGENT_PORT"
+          cat ~/.config/formae/formae.conf.pkl
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -101,6 +125,4 @@ jobs:
           aws-region: us-east-1
 
       - name: Formae Apply
-        env:
-          FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
         run: formae apply --mode reconcile --yes ec2-vm/main.pkl

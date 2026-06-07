@@ -38,7 +38,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Formae Destroy
+      - name: Configure Formae CLI
         env:
           FORMAE_AGENT_URL: ${{ vars.FORMAE_AGENT_URL }}
+        run: |
+          mkdir -p ~/.config/formae
+          AGENT_HOST=$(echo "$FORMAE_AGENT_URL" | sed 's|https\?://||' | cut -d: -f1)
+          AGENT_PORT=$(echo "$FORMAE_AGENT_URL" | grep -oE ':[0-9]+$' | tr -d ':')
+          AGENT_PORT=${AGENT_PORT:-49684}
+          printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
+            "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
+
+      - name: Formae Destroy
         run: formae destroy --yes ec2-vm/main.pkl
