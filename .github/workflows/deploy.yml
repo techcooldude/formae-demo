@@ -48,8 +48,6 @@ jobs:
           AGENT_PORT=${AGENT_PORT:-49684}
           printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
             "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
-          echo "Agent: $AGENT_HOST:$AGENT_PORT"
-          cat ~/.config/formae/formae.conf.pkl
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -58,12 +56,72 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Formae Eval (Plan)
+      - name: Formae Plan
         id: plan
         run: |
           set +e
-          formae eval ec2-vm/main.pkl 2>&1 | tee formae-plan.txt
+          formae apply --mode reconcile --simulate --yes --watch \
+            --status-output-layout detailed ec2-vm/main.pkl 2>&1 \
+            | sed 's/\x1b\[[0-9;]*[mJHKABCDlh]//g; s/\r//g' \
+            > /tmp/formae-sim-raw.txt
           EXIT_CODE=${PIPESTATUS[0]}
+
+          python3 - <<'PYEOF' | tee formae-plan.txt
+import re, sys
+
+text = open('/tmp/formae-sim-raw.txt').read()
+
+# Extract resource actions from the simulate output (last state wins)
+resources = {}
+for line in text.splitlines():
+    m = re.search(r'(create|update|delete|replace) resource ([^:│├└\s][^:]+?)\s*: (Success|Failed|InProgress|NotStarted)', line)
+    if m:
+        action, name, status = m.group(1), m.group(2).strip(), m.group(3)
+        resources[name] = (action, status)
+
+creates  = sum(1 for a,_ in resources.values() if a == 'create')
+updates  = sum(1 for a,_ in resources.values() if a == 'update')
+deletes  = sum(1 for a,_ in resources.values() if a == 'delete')
+replaces = sum(1 for a,_ in resources.values() if a == 'replace')
+total    = creates + updates + deletes + replaces
+
+W = 50
+print('═' * W)
+print('  Formae Plan  ·  ec2-vm  ·  reconcile mode')
+print('═' * W)
+print()
+
+SYM   = {'create': '+', 'update': '~', 'delete': '-', 'replace': '±'}
+COLOR = {'create': '\033[32m', 'update': '\033[33m', 'delete': '\033[31m', 'replace': '\033[35m'}
+RESET = '\033[0m'
+
+if not resources:
+    print('  No changes. Infrastructure is up-to-date.')
+else:
+    order = ['create', 'update', 'replace', 'delete']
+    for action in order:
+        for name, (act, status) in sorted(resources.items()):
+            if act != action:
+                continue
+            sym    = SYM[action]
+            clr    = COLOR[action]
+            suffix = {'create':'will be created','update':'will be updated',
+                      'delete':'will be destroyed','replace':'will be replaced'}[action]
+            fail   = '  ✗ FAILED' if status == 'Failed' else ''
+            print(f'  {clr}{sym} {name:<22}{RESET}  {suffix}{fail}')
+
+print()
+print('─' * W)
+parts = []
+if creates:  parts.append(f'\033[32m{creates} to add\033[0m')
+if updates:  parts.append(f'\033[33m{updates} to change\033[0m')
+if deletes:  parts.append(f'\033[31m{deletes} to destroy\033[0m')
+if replaces: parts.append(f'\033[35m{replaces} to replace\033[0m')
+if not parts: parts.append('\033[32m0 to add\033[0m, \033[33m0 to change\033[0m, \033[31m0 to destroy\033[0m')
+print('  Plan: ' + ', '.join(parts))
+print('═' * W)
+PYEOF
+
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
 
@@ -114,8 +172,6 @@ jobs:
           AGENT_PORT=${AGENT_PORT:-49684}
           printf 'amends "formae:/Config.pkl"\n\ncli {\n    api {\n        url = "http://%s"\n        port = %s\n    }\n}\n' \
             "$AGENT_HOST" "$AGENT_PORT" > ~/.config/formae/formae.conf.pkl
-          echo "Agent: $AGENT_HOST:$AGENT_PORT"
-          cat ~/.config/formae/formae.conf.pkl
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
