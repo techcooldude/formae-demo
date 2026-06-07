@@ -35,6 +35,9 @@ jobs:
         run: |
           curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y -v 0.85.0
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
+          # find and expose pkl wherever it landed
+          PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
+          [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -42,9 +45,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-
-      - name: Resolve Pkl dependencies
-        run: cd ec2-vm && /opt/pel/formae/bin/pkl project resolve
 
       - name: Formae Eval (Plan)
         id: plan
@@ -89,6 +89,8 @@ jobs:
         run: |
           curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y -v 0.85.0
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
+          PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
+          [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -96,9 +98,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-
-      - name: Resolve Pkl dependencies
-        run: cd ec2-vm && /opt/pel/formae/bin/pkl project resolve
 
       - name: Formae Apply
         run: formae apply --mode reconcile --yes ec2-vm/main.pkl
