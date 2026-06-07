@@ -125,4 +125,4 @@ jobs:
           aws-region: us-east-1
 
       - name: Formae Apply
-        run: formae apply --mode reconcile --yes ec2-vm/main.pkl
+        run: formae apply --mode reconcile --yes --watch ec2-vm/main.pkl
