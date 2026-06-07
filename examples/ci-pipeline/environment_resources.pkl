@@ -1,0 +1,69 @@
+module environment_resources
+
+import "@gha/repo/repoenvironment.pkl" as repoenv
+import "@gha/repo/repoenvironmentsecret.pkl" as reposecret
+import "@gha/repo/repoenvironmentvariable.pkl" as repoenvvar
+import "@gha/repo/repobranchpolicyruleset.pkl" as branchpolicy
+
+class EnvironmentResources {
+    envName: String
+    envWaitTimer: Int = 0
+    envPreventSelfReview: Boolean = false
+    branchPatterns: Listing<String>
+    secrets: Mapping<String, String>
+    variables: Mapping<String, String>
+
+    local environment = new repoenv.Environment {
+        label = envName
+        name = envName
+        waitTimer = envWaitTimer
+        preventSelfReview = envPreventSelfReview
+        reviewers {}
+    }
+
+    local envSecrets: Listing<reposecret.Secret> = new {
+        for (key, value in secrets) {
+            new reposecret.Secret {
+                label = "\(envName)-\(key.toLowerCase().replaceAll("_", "-"))"
+                environment = envName
+                secretName = key
+                plaintextValue = value
+            }
+        }
+    }
+
+    local envVariables: Listing<repoenvvar.Variable> = new {
+        for (key, value in variables) {
+            new repoenvvar.Variable {
+                label = "\(envName)-\(key.toLowerCase().replaceAll("_", "-"))"
+                environment = envName
+                name = key
+                value = value
+            }
+        }
+    }
+
+    local branchRuleset = new branchpolicy.BranchPolicyRuleset {
+        label = "\(envName)-branch-policy"
+        name = "\(envName)-branch-protection"
+        enforcement = "active"
+        conditions {
+            refName {
+                include = branchPatterns
+                exclude {}
+            }
+        }
+        rules {
+            deletion {}
+            nonFastForward {}
+            requiredLinearHistory {}
+        }
+    }
+
+    resources: Listing<dynamic> = new {
+        environment
+        ...envSecrets
+        ...envVariables
+        branchRuleset
+    }
+}

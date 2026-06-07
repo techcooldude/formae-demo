@@ -1,0 +1,178 @@
+amends "@formae/forma.pkl"
+
+import "@formae/formae.pkl"
+import "@gha/repo/repovariable.pkl" as repovar
+import "@gha/repo/repoworkflow.pkl" as workflow
+import "@com.github.actions/Workflow.pkl" as GHAWorkflow
+
+import "vars.pkl"
+import "environment_resources.pkl" as er
+
+description {
+    text = """
+        Bootstrap the CI/CD pipeline for deploying AWS infrastructure.
+
+        Creates apply and destroy workflows, staging and production environments
+        with approval gates, AWS OIDC secrets, and branch policies.
+        """
+    confirm = true
+}
+
+local projectNameVar = new repovar.Variable {
+    label = "project-name"
+    name = "PROJECT_NAME"
+    value = vars.projectName
+}
+
+local defaultRegionVar = new repovar.Variable {
+    label = "default-aws-region"
+    name = "AWS_DEFAULT_REGION"
+    value = vars.awsRegion
+}
+
+local agentUrlVar = new repovar.Variable {
+    label = "formae-agent-url"
+    name = "FORMAE_AGENT_URL"
+    value = "https://formae-agent.example.com:8080"
+}
+
+local staging = new er.EnvironmentResources {
+    envName = "staging"
+    branchPatterns = new { "release/*"; "develop" }
+    secrets {
+        ["AWS_ROLE_ARN"] = "arn:aws:iam::111111111111:role/staging-deploy"
+    }
+    variables {
+        ["AWS_REGION"] = vars.awsRegion
+        ["VPC_CIDR"] = "10.1.0.0/16"
+    }
+}
+
+local production = new er.EnvironmentResources {
+    envName = "production"
+    envWaitTimer = 15
+    envPreventSelfReview = true
+    branchPatterns = new { "main" }
+    secrets {
+        ["AWS_ROLE_ARN"] = "arn:aws:iam::222222222222:role/production-deploy"
+    }
+    variables {
+        ["AWS_REGION"] = vars.awsRegion
+        ["VPC_CIDR"] = "10.2.0.0/16"
+    }
+}
+
+local applyWorkflow = new workflow.Workflow {
+    label = "apply-workflow"
+    path = ".github/workflows/apply.yml"
+    name = "Apply Infrastructure"
+    on = new GHAWorkflow.On {
+        workflow_dispatch {
+            inputs {
+                ["environment"] {
+                    description = "Environment to deploy"
+                    required = true
+                    type = "choice"
+                    options { "staging"; "production" }
+                }
+            }
+        }
+    }
+    permissions = new GHAWorkflow.Permissions {
+        `id-token` = "write"
+        contents = "read"
+    }
+    jobs {
+        ["apply"] {
+            `runs-on` = "ubuntu-latest"
+            environment { name = "${{ github.event.inputs.environment }}" }
+            steps {
+                new { uses = "actions/checkout@v4" }
+                new { name = "Install formae"; run = #"/bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)""# }
+                new {
+                    name = "Configure AWS credentials"
+                    uses = "aws-actions/configure-aws-credentials@v4"
+                    `with` {
+                        ["role-to-assume"] = "${{ secrets.AWS_ROLE_ARN }}"
+                        ["aws-region"] = "${{ vars.AWS_REGION }}"
+                    }
+                }
+                new {
+                    name = "Apply infrastructure"
+                    run = "formae apply --mode reconcile --yes forma.pkl"
+                    env {
+                        ["FORMAE_AGENT_URL"] = "${{ vars.FORMAE_AGENT_URL }}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+local destroyWorkflow = new workflow.Workflow {
+    label = "destroy-workflow"
+    path = ".github/workflows/destroy.yml"
+    name = "Destroy Infrastructure"
+    on = new GHAWorkflow.On {
+        workflow_dispatch {
+            inputs {
+                ["environment"] {
+                    description = "Environment to destroy"
+                    required = true
+                    type = "choice"
+                    options { "staging"; "production" }
+                }
+                ["confirm"] {
+                    description = "Type 'destroy' to confirm"
+                    required = true
+                    type = "string"
+                }
+            }
+        }
+    }
+    permissions = new GHAWorkflow.Permissions {
+        `id-token` = "write"
+        contents = "read"
+    }
+    jobs {
+        ["destroy"] {
+            `if` = "github.event.inputs.confirm == 'destroy'"
+            `runs-on` = "ubuntu-latest"
+            environment { name = "${{ github.event.inputs.environment }}" }
+            steps {
+                new { uses = "actions/checkout@v4" }
+                new { name = "Install formae"; run = #"/bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)""# }
+                new {
+                    name = "Configure AWS credentials"
+                    uses = "aws-actions/configure-aws-credentials@v4"
+                    `with` {
+                        ["role-to-assume"] = "${{ secrets.AWS_ROLE_ARN }}"
+                        ["aws-region"] = "${{ vars.AWS_REGION }}"
+                    }
+                }
+                new {
+                    name = "Destroy infrastructure"
+                    run = "formae destroy --yes forma.pkl"
+                    env {
+                        ["FORMAE_AGENT_URL"] = "${{ vars.FORMAE_AGENT_URL }}"
+                    }
+                }
+            }
+        }
+    }
+}
+
+forma {
+    vars.stack
+    vars.target
+
+    applyWorkflow
+    destroyWorkflow
+
+    projectNameVar
+    defaultRegionVar
+    agentUrlVar
+
+    ...staging.resources
+    ...production.resources
+}

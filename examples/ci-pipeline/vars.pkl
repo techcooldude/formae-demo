@@ -1,0 +1,22 @@
+module vars
+
+import "@formae/formae.pkl"
+import "@gha/gha.pkl"
+
+projectName = "formae-demo"
+
+stack = new formae.Stack {
+    label = "ci-pipeline"
+    description = "CI/CD infrastructure for AWS deployment"
+}
+
+target = new formae.Target {
+    label = "github"
+    namespace = "GHA"
+    config = new gha.Config {
+        owner = read("env:GHA_OWNER")
+        repo = read("env:GHA_REPO")
+    }
+}
+
+awsRegion = "us-east-1"
