@@ -3,7 +3,6 @@ amends "@formae/forma.pkl"
 import "@formae/formae.pkl"
 import "@aws/ec2/securitygroup.pkl" as sg
 import "@aws/ec2/securitygroupingress.pkl" as sgi
-import "@aws/ec2/securitygroupegress.pkl" as sge
 import "@aws/ec2/instance.pkl" as ec2
 import "@aws/ec2/eip.pkl" as eip
 import "@aws/ec2/eipassociation.pkl" as eipassoc
@@ -33,7 +32,7 @@ local securityGroup = new sg.SecurityGroup {
 
 local sshIngress = new sgi.SecurityGroupIngress {
     label = "ssh-ingress"
-    groupId = securityGroup.res
+    groupId = securityGroup.res.groupId
     ipProtocol = "tcp"
     fromPort = 22
     toPort = 22
@@ -43,7 +42,7 @@ local sshIngress = new sgi.SecurityGroupIngress {
 
 local httpIngress = new sgi.SecurityGroupIngress {
     label = "http-ingress"
-    groupId = securityGroup.res
+    groupId = securityGroup.res.groupId
     ipProtocol = "tcp"
     fromPort = 80
     toPort = 80
@@ -53,7 +52,7 @@ local httpIngress = new sgi.SecurityGroupIngress {
 
 local httpsIngress = new sgi.SecurityGroupIngress {
     label = "https-ingress"
-    groupId = securityGroup.res
+    groupId = securityGroup.res.groupId
     ipProtocol = "tcp"
     fromPort = 443
     toPort = 443
@@ -61,26 +60,18 @@ local httpsIngress = new sgi.SecurityGroupIngress {
     description = "HTTPS access"
 }
 
-local allEgress = new sge.SecurityGroupEgress {
-    label = "all-egress"
-    groupId = securityGroup.res
-    ipProtocol = "-1"
-    cidrIp = "0.0.0.0/0"
-    description = "Allow all outbound"
-}
-
 local instance = new ec2.Instance {
     label = "vm"
     imageId = vars.amiId
     instanceType = vars.instanceType
     keyName = vars.keyName
-    securityGroupIds = new { securityGroup.res }
+    securityGroupIds { securityGroup.res.groupId }
     userData = """
         #!/bin/bash
         yum update -y
         yum install -y git curl wget unzip
         echo "VM ready: \(vars.projectName)" >> /var/log/bootstrap.log
-        """
+        """.base64
     tags = new {
         new { key = "Name"; value = vars.projectName }
         new { key = "Project"; value = vars.projectName }
@@ -99,8 +90,8 @@ local elasticIp = new eip.EIP {
 
 local eipAssociation = new eipassoc.EIPAssociation {
     label = "vm-eip-assoc"
-    instanceId = instance.res
-    allocationId = elasticIp.res
+    instanceId = instance.res.instanceId
+    allocationId = elasticIp.res.allocationId
 }
 
 forma {
@@ -111,7 +102,6 @@ forma {
     sshIngress
     httpIngress
     httpsIngress
-    allEgress
 
     instance
     elasticIp
