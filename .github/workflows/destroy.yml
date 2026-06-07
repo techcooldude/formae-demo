@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+env:
+  FORMAE_DB_PATH: ~/.pel/formae/data/formae.db
+  FORMAE_STATE_S3: s3://${{ vars.FORMAE_STATE_BUCKET }}/formae.db
+
 jobs:
   destroy:
     if: github.event.inputs.confirm == 'destroy'
@@ -38,5 +42,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Restore Formae state
+        run: |
+          mkdir -p ~/.pel/formae/data
+          aws s3 cp ${{ env.FORMAE_STATE_S3 }} ${{ env.FORMAE_DB_PATH }} 2>/dev/null || echo "No existing state — nothing to destroy"
+
+      - name: Start Formae agent
+        run: |
+          formae agent start &
+          sleep 5
+
       - name: Destroy infrastructure
         run: formae destroy --yes ec2-vm/main.pkl
+
+      - name: Clear Formae state
+        if: success()
+        run: aws s3 rm ${{ env.FORMAE_STATE_S3 }}

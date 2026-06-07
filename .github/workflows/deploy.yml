@@ -19,6 +19,8 @@ permissions:
 
 env:
   TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
+  FORMAE_DB_PATH: ~/.pel/formae/data/formae.db
+  FORMAE_STATE_S3: s3://${{ vars.FORMAE_STATE_BUCKET }}/formae.db
 
 jobs:
   # ── Stage 1: Plan ─────────────────────────────────────────────────────────
@@ -35,7 +37,6 @@ jobs:
         run: |
           curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
           echo "/opt/pel/formae/bin" >> $GITHUB_PATH
-          # find and expose pkl wherever it landed
           PKL=$(find /opt/pel -name "pkl" -type f 2>/dev/null | head -1)
           [ -n "$PKL" ] && echo "$(dirname $PKL)" >> $GITHUB_PATH
 
@@ -45,6 +46,11 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - name: Restore Formae state
+        run: |
+          mkdir -p ~/.pel/formae/data
+          aws s3 cp ${{ env.FORMAE_STATE_S3 }} ${{ env.FORMAE_DB_PATH }} 2>/dev/null || echo "No existing state found — starting fresh"
 
       - name: Start Formae agent
         run: |
@@ -104,11 +110,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Restore Formae state
+        run: |
+          mkdir -p ~/.pel/formae/data
+          aws s3 cp ${{ env.FORMAE_STATE_S3 }} ${{ env.FORMAE_DB_PATH }} 2>/dev/null || echo "No existing state found — starting fresh"
+
       - name: Start Formae agent
         run: |
           formae agent start &
           sleep 5
-          formae status agent
 
       - name: Formae Apply
         run: formae apply --mode reconcile --yes ec2-vm/main.pkl
+
+      - name: Save Formae state
+        if: always()
+        run: aws s3 cp ${{ env.FORMAE_DB_PATH }} ${{ env.FORMAE_STATE_S3 }}
