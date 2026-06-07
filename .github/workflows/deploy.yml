@@ -46,6 +46,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Start Formae agent
+        run: |
+          formae agent start &
+          sleep 5
+
       - name: Formae Eval (Plan)
         id: plan
         run: |
@@ -98,6 +103,12 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - name: Start Formae agent
+        run: |
+          formae agent start &
+          sleep 5
+          formae status agent
 
       - name: Formae Apply
         run: formae apply --mode reconcile --yes ec2-vm/main.pkl
