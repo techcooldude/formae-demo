@@ -1,6 +1,9 @@
 name: Deploy Infrastructure
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       environment:
@@ -14,10 +17,13 @@ on:
 permissions:
   contents: read
 
+env:
+  TARGET_ENV: ${{ github.event.inputs.environment || 'staging' }}
+
 jobs:
   # ── Stage 1: Plan ─────────────────────────────────────────────────────────
   plan:
-    name: Plan (${{ github.event.inputs.environment }})
+    name: Plan (${{ github.event.inputs.environment || 'staging' }})
     runs-on: ubuntu-latest
     outputs:
       plan_exit_code: ${{ steps.plan.outputs.exit_code }}
@@ -48,16 +54,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: formae-plan-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          name: formae-plan-${{ env.TARGET_ENV }}-${{ github.run_id }}
           path: formae-plan.txt
           retention-days: 7
 
   # ── Stage 2: Apply (runs only after plan succeeds) ────────────────────────
   apply:
-    name: Apply (${{ github.event.inputs.environment }})
+    name: Apply (${{ github.event.inputs.environment || 'staging' }})
     needs: plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ github.event.inputs.environment || 'staging' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +71,7 @@ jobs:
       - name: Download plan output
         uses: actions/download-artifact@v4
         with:
-          name: formae-plan-${{ github.event.inputs.environment }}-${{ github.run_id }}
+          name: formae-plan-${{ env.TARGET_ENV }}-${{ github.run_id }}
 
       - name: Show plan summary
         run: |
