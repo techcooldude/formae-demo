@@ -27,7 +27,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Formae
-        run: curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
+        run: |
+          curl -fsSL https://hub.platform.engineering/setup/formae.sh | sudo bash -s -- -y
+          echo "/opt/pel/formae/bin" >> $GITHUB_PATH
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
