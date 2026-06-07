@@ -33,19 +33,30 @@ aws secretsmanager create-secret \
 # ── 2. Aurora Serverless v2 cluster ─────────────────────────────────────────
 echo ""
 echo "[ 2/9 ] Creating Aurora Serverless v2 cluster (takes ~5 min)..."
-aws rds create-db-cluster \
+CLUSTER_EXISTS=$(aws rds describe-db-clusters \
   --db-cluster-identifier $DB_CLUSTER \
-  --engine aurora-postgresql \
-  --engine-version 16.4 \
-  --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=2 \
-  --master-username postgres \
-  --master-user-password "$DB_PASSWORD" \
-  --enable-http-endpoint \
   --region $REGION \
-  --tags Key=app,Value=formae-agent \
-  --output text --query DBCluster.DBClusterIdentifier 2>/dev/null || echo "  Cluster already exists, skipping"
+  --query "DBClusters[0].DBClusterIdentifier" \
+  --output text 2>/dev/null || echo "")
 
-aws rds wait db-cluster-available --db-cluster-identifier $DB_CLUSTER --region $REGION
+if [ -z "$CLUSTER_EXISTS" ]; then
+  aws rds create-db-cluster \
+    --db-cluster-identifier $DB_CLUSTER \
+    --engine aurora-postgresql \
+    --engine-version 16.4 \
+    --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=2 \
+    --master-username postgres \
+    --master-user-password "$DB_PASSWORD" \
+    --enable-http-endpoint \
+    --region $REGION \
+    --tags Key=app,Value=formae-agent \
+    --output text --query DBCluster.DBClusterIdentifier
+  echo "  Waiting for cluster to be available..."
+  aws rds wait db-cluster-available --db-cluster-identifier $DB_CLUSTER --region $REGION
+else
+  echo "  Cluster already exists, waiting until available..."
+  aws rds wait db-cluster-available --db-cluster-identifier $DB_CLUSTER --region $REGION
+fi
 
 aws rds create-db-instance \
   --db-instance-identifier formae-db-instance \
