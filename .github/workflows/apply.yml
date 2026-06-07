@@ -32,4 +32,4 @@ jobs:
           aws-region: us-east-1
 
       - name: Apply infrastructure
-        run: formae apply --mode reconcile --yes examples/ec2-vm/main.pkl
+        run: formae apply --mode reconcile --yes ec2-vm/main.pkl

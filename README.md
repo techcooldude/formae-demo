@@ -11,7 +11,7 @@ Example infrastructure-as-code configurations using [Formae](https://docs.formae
 
 ## Examples
 
-### CI/CD Pipeline (`examples/ci-pipeline`)
+### CI/CD Pipeline (`ci-pipeline`)
 
 Bootstraps a full GitHub Actions CI/CD pipeline for deploying AWS infrastructure into any repository.
 
@@ -24,7 +24,7 @@ Bootstraps a full GitHub Actions CI/CD pipeline for deploying AWS infrastructure
 
 **Run:**
 ```bash
-cd examples/ci-pipeline
+cd ci-pipeline
 
 export GHA_OWNER=your-github-username
 export GHA_REPO=your-infrastructure-repo
@@ -45,7 +45,7 @@ gh secret set AWS_SECRET_ACCESS_KEY --repo your-github-username/your-infrastruct
 
 ---
 
-### EC2 VM Deployment (`examples/ec2-vm`)
+### EC2 VM Deployment (`ec2-vm`)
 
 Provisions an EC2 virtual machine with a security group, SSH access, and an optional startup script.
 
@@ -57,7 +57,7 @@ Provisions an EC2 virtual machine with a security group, SSH access, and an opti
 
 **Run:**
 ```bash
-cd examples/ec2-vm
+cd ec2-vm
 
 export AWS_ACCESS_KEY_ID=your-key-id
 export AWS_SECRET_ACCESS_KEY=your-secret-key
@@ -83,14 +83,16 @@ formae destroy --yes main.pkl
 
 ```
 formae-demo/
-├── examples/
-│   ├── ci-pipeline/
-│   │   ├── main.pkl                  # Pipeline entrypoint
-│   │   ├── vars.pkl                  # Stack, target, region config
-│   │   └── environment_resources.pkl # Reusable environment + branch policy class
-│   └── ec2-vm/
-│       ├── main.pkl                  # VM deployment entrypoint
-│       └── vars.pkl                  # Region, instance type, AMI, tags
+├── .github/workflows/
+│   ├── apply.yml                     # Deploy workflow (manual trigger)
+│   └── destroy.yml                   # Destroy workflow (manual trigger)
+├── ci-pipeline/
+│   ├── main.pkl                      # Pipeline entrypoint
+│   ├── vars.pkl                      # Stack, target, region config
+│   └── environment_resources.pkl     # Reusable environment + branch policy class
+├── ec2-vm/
+│   ├── main.pkl                      # VM deployment entrypoint
+│   └── vars.pkl                      # Region, instance type, AMI, tags
 └── README.md
 ```
 
