@@ -59,6 +59,7 @@ jobs:
       - name: Formae Plan
         id: plan
         run: |
+          formae eval ec2-vm/main.pkl > /dev/null 2>&1 || true
           set +e
           formae apply --mode reconcile --simulate --yes --watch \
             --status-output-layout detailed ec2-vm/main.pkl 2>&1 \
