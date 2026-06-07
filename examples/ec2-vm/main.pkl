@@ -1,0 +1,145 @@
+amends "@formae/forma.pkl"
+
+import "@formae/formae.pkl"
+import "@aws/ec2/SecurityGroup.pkl" as sg
+import "@aws/ec2/SecurityGroupRule.pkl" as sgrule
+import "@aws/ec2/Instance.pkl" as ec2
+import "@aws/ec2/ElasticIp.pkl" as eip
+import "@aws/ec2/EipAssociation.pkl" as eipassoc
+import "@aws/cloudwatch/MetricAlarm.pkl" as alarm
+
+import "vars.pkl"
+
+description {
+    text = """
+        Deploy an EC2 virtual machine with:
+          - Security group (SSH + HTTP/HTTPS ingress, all egress)
+          - Amazon Linux 2023 instance with basic user-data bootstrap
+          - Elastic IP for a stable public address
+          - CloudWatch CPU alarm at 80% threshold
+        """
+    confirm = true
+}
+
+local securityGroup = new sg.SecurityGroup {
+    label = "vm-sg"
+    name = "\(vars.projectName)-sg"
+    description = "Security group for \(vars.projectName)"
+    tags {
+        ["Name"] = "\(vars.projectName)-sg"
+        ["Project"] = vars.projectName
+    }
+}
+
+local sshIngress = new sgrule.SecurityGroupRule {
+    label = "ssh-ingress"
+    type = "ingress"
+    fromPort = 22
+    toPort = 22
+    protocol = "tcp"
+    cidrIpv4 = "0.0.0.0/0"
+    securityGroupId = securityGroup.id
+    description = "SSH access"
+}
+
+local httpIngress = new sgrule.SecurityGroupRule {
+    label = "http-ingress"
+    type = "ingress"
+    fromPort = 80
+    toPort = 80
+    protocol = "tcp"
+    cidrIpv4 = "0.0.0.0/0"
+    securityGroupId = securityGroup.id
+    description = "HTTP access"
+}
+
+local httpsIngress = new sgrule.SecurityGroupRule {
+    label = "https-ingress"
+    type = "ingress"
+    fromPort = 443
+    toPort = 443
+    protocol = "tcp"
+    cidrIpv4 = "0.0.0.0/0"
+    securityGroupId = securityGroup.id
+    description = "HTTPS access"
+}
+
+local allEgress = new sgrule.SecurityGroupRule {
+    label = "all-egress"
+    type = "egress"
+    fromPort = 0
+    toPort = 0
+    protocol = "-1"
+    cidrIpv4 = "0.0.0.0/0"
+    securityGroupId = securityGroup.id
+    description = "Allow all outbound"
+}
+
+local instance = new ec2.Instance {
+    label = "vm"
+    ami = vars.amiId
+    instanceType = vars.instanceType
+    keyName = vars.keyName
+    associatePublicIpAddress = true
+    securityGroups { securityGroup.id }
+    userData = """
+        #!/bin/bash
+        yum update -y
+        yum install -y git curl wget unzip
+        # Add your bootstrap commands here
+        echo "VM ready: \(vars.projectName)" >> /var/log/bootstrap.log
+        """
+    tags {
+        ["Name"] = vars.projectName
+        ["Project"] = vars.projectName
+        ["ManagedBy"] = "formae"
+    }
+}
+
+local elasticIp = new eip.ElasticIp {
+    label = "vm-eip"
+    domain = "vpc"
+    tags {
+        ["Name"] = "\(vars.projectName)-eip"
+        ["Project"] = vars.projectName
+    }
+}
+
+local eipAssociation = new eipassoc.EipAssociation {
+    label = "vm-eip-assoc"
+    instanceId = instance.id
+    allocationId = elasticIp.id
+}
+
+local cpuAlarm = new alarm.MetricAlarm {
+    label = "vm-cpu-alarm"
+    alarmName = "\(vars.projectName)-high-cpu"
+    alarmDescription = "EC2 CPU utilization above 80%"
+    metricName = "CPUUtilization"
+    namespace = "AWS/EC2"
+    statistic = "Average"
+    period = 300
+    evaluationPeriods = 2
+    threshold = 80
+    comparisonOperator = "GreaterThanThreshold"
+    dimensions {
+        ["InstanceId"] = instance.id
+    }
+}
+
+forma {
+    vars.stack
+    vars.target
+
+    securityGroup
+    sshIngress
+    httpIngress
+    httpsIngress
+    allEgress
+
+    instance
+    elasticIp
+    eipAssociation
+
+    cpuAlarm
+}

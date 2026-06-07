@@ -1,0 +1,32 @@
+module vars
+
+import "@formae/formae.pkl"
+import "@aws/aws.pkl"
+
+projectName = "formae-demo-vm"
+
+region = "us-east-1"
+
+// Amazon Linux 2023 (us-east-1) — update if changing region
+// Find latest: aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*-x86_64"
+amiId = "ami-0c02fb55956c7d316"
+
+instanceType = "t3.micro"
+
+// Name of an existing EC2 key pair for SSH access
+keyName = "my-key-pair"
+
+stack = new formae.Stack {
+    label = "ec2-vm"
+    description = "EC2 virtual machine with security group and Elastic IP"
+}
+
+target = new formae.Target {
+    label = "aws"
+    namespace = "AWS"
+    config = new aws.Config {
+        region = region
+        accessKeyId = read("env:AWS_ACCESS_KEY_ID")
+        secretAccessKey = read("env:AWS_SECRET_ACCESS_KEY")
+    }
+}
