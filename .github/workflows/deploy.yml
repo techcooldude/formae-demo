@@ -43,11 +43,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Formae Plan
+      - name: Formae Eval (Plan)
         id: plan
         run: |
           set +e
-          formae plan ec2-vm/main.pkl 2>&1 | tee formae-plan.txt
+          formae eval ec2-vm/main.pkl 2>&1 | tee formae-plan.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
