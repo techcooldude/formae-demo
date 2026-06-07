@@ -1,7 +1,6 @@
 module environment_resources
 
 import "@gha/repo/repoenvironment.pkl" as repoenv
-import "@gha/repo/repoenvironmentsecret.pkl" as reposecret
 import "@gha/repo/repoenvironmentvariable.pkl" as repoenvvar
 import "@gha/repo/repobranchpolicyruleset.pkl" as branchpolicy
 
@@ -10,7 +9,6 @@ class EnvironmentResources {
     envWaitTimer: Int = 0
     envPreventSelfReview: Boolean = false
     branchPatterns: Listing<String>
-    secrets: Mapping<String, String>
     variables: Mapping<String, String>
 
     local environment = new repoenv.Environment {
@@ -19,17 +17,6 @@ class EnvironmentResources {
         waitTimer = envWaitTimer
         preventSelfReview = envPreventSelfReview
         reviewers {}
-    }
-
-    local envSecrets: Listing<reposecret.Secret> = new {
-        for (key, value in secrets) {
-            new reposecret.Secret {
-                label = "\(envName)-\(key.toLowerCase().replaceAll("_", "-"))"
-                environment = envName
-                secretName = key
-                plaintextValue = value
-            }
-        }
     }
 
     local envVariables: Listing<repoenvvar.Variable> = new {
@@ -62,7 +49,6 @@ class EnvironmentResources {
 
     resources: Listing<dynamic> = new {
         environment
-        ...envSecrets
         ...envVariables
         branchRuleset
     }

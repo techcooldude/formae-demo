@@ -13,7 +13,7 @@ description {
         Bootstrap the CI/CD pipeline for deploying AWS infrastructure.
 
         Creates apply and destroy workflows, staging and production environments
-        with approval gates, AWS OIDC secrets, and branch policies.
+        with approval gates, AWS credentials secrets, and branch policies.
         """
     confirm = true
 }
@@ -39,9 +39,6 @@ local agentUrlVar = new repovar.Variable {
 local staging = new er.EnvironmentResources {
     envName = "staging"
     branchPatterns = new { "release/*"; "develop" }
-    secrets {
-        ["AWS_ROLE_ARN"] = "arn:aws:iam::111111111111:role/staging-deploy"
-    }
     variables {
         ["AWS_REGION"] = vars.awsRegion
         ["VPC_CIDR"] = "10.1.0.0/16"
@@ -53,9 +50,6 @@ local production = new er.EnvironmentResources {
     envWaitTimer = 15
     envPreventSelfReview = true
     branchPatterns = new { "main" }
-    secrets {
-        ["AWS_ROLE_ARN"] = "arn:aws:iam::222222222222:role/production-deploy"
-    }
     variables {
         ["AWS_REGION"] = vars.awsRegion
         ["VPC_CIDR"] = "10.2.0.0/16"
@@ -79,7 +73,6 @@ local applyWorkflow = new workflow.Workflow {
         }
     }
     permissions = new GHAWorkflow.Permissions {
-        `id-token` = "write"
         contents = "read"
     }
     jobs {
@@ -93,7 +86,8 @@ local applyWorkflow = new workflow.Workflow {
                     name = "Configure AWS credentials"
                     uses = "aws-actions/configure-aws-credentials@v4"
                     `with` {
-                        ["role-to-assume"] = "${{ secrets.AWS_ROLE_ARN }}"
+                        ["aws-access-key-id"] = "${{ secrets.AWS_ACCESS_KEY_ID }}"
+                        ["aws-secret-access-key"] = "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
                         ["aws-region"] = "${{ vars.AWS_REGION }}"
                     }
                 }
@@ -131,7 +125,6 @@ local destroyWorkflow = new workflow.Workflow {
         }
     }
     permissions = new GHAWorkflow.Permissions {
-        `id-token` = "write"
         contents = "read"
     }
     jobs {
@@ -146,7 +139,8 @@ local destroyWorkflow = new workflow.Workflow {
                     name = "Configure AWS credentials"
                     uses = "aws-actions/configure-aws-credentials@v4"
                     `with` {
-                        ["role-to-assume"] = "${{ secrets.AWS_ROLE_ARN }}"
+                        ["aws-access-key-id"] = "${{ secrets.AWS_ACCESS_KEY_ID }}"
+                        ["aws-secret-access-key"] = "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
                         ["aws-region"] = "${{ vars.AWS_REGION }}"
                     }
                 }
