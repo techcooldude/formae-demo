@@ -9,6 +9,7 @@ REGION="us-east-1"
 FORMAE_VERSION="0.83.2"
 INSTANCE_NAME="formae-agent"
 KEY_NAME="formae-agent-key"
+export AWS_PAGER=""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Formae Agent — EC2 Free Tier Setup"
@@ -126,7 +127,7 @@ USERDATA
 
 INSTANCE_ID=$(aws ec2 run-instances \
   --image-id $AMI_ID \
-  --instance-type t2.micro \
+  --instance-type t3.micro \
   --key-name $KEY_NAME \
   --security-group-ids $SG_ID \
   --user-data "$USER_DATA" \
