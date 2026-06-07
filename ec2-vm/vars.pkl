@@ -5,7 +5,7 @@ import "@aws/aws.pkl"
 
 projectName = "formae-demo-vm"
 
-region = "us-east-1"
+awsRegion = "us-east-1"
 
 // Amazon Linux 2023 (us-east-1) — update if changing region
 // Find latest: aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*-x86_64"
@@ -25,6 +25,6 @@ target = new formae.Target {
     label = "aws"
     namespace = "AWS"
     config = new aws.Config {
-        region = region
+        region = awsRegion
     }
 }
