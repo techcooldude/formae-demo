@@ -26,7 +26,5 @@ target = new formae.Target {
     namespace = "AWS"
     config = new aws.Config {
         region = region
-        accessKeyId = read("env:AWS_ACCESS_KEY_ID")
-        secretAccessKey = read("env:AWS_SECRET_ACCESS_KEY")
     }
 }
