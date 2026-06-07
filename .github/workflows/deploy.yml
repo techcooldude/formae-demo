@@ -128,7 +128,7 @@ jobs:
         run: |
           set +e
           formae apply --mode reconcile --yes --watch --status-output-layout detailed ec2-vm/main.pkl 2>&1 | tee /tmp/formae-apply.txt
-          if grep -q "reason for failure\|: Failed" /tmp/formae-apply.txt; then
+          if grep -qE "resource .+: Failed|reason for failure|apply command .+: Failed" /tmp/formae-apply.txt; then
             echo ""
             echo "::error::One or more resources failed to deploy. See details above."
             exit 1
