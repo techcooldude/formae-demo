@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Formae
-        run: yes | /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
+        run: sudo /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -75,7 +75,7 @@ jobs:
           cat formae-plan.txt
 
       - name: Install Formae
-        run: yes | /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
+        run: sudo /bin/bash -c "$(curl -fsSL https://hub.platform.engineering/setup/formae.sh)"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
